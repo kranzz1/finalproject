@@ -28,8 +28,6 @@
 
 
 /*Global Variables*/
-int value;
-#include <xc.h>
 
 void main(void) {
     while(1)
