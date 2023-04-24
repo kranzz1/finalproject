@@ -8,6 +8,7 @@
 /*Preprocessor Directives*/
 #include <xc.h>
 #include <pic18f4520.h>             // for TRISB and PORTB declarations
+#include "LCD_lib.h"
 
 
 
@@ -29,7 +30,18 @@
 
 /*Global Variables*/
 
+
+
 void main(void) {
+    LCD_init();
+    TRISC = 0xF0;
+    TRISB = 0xFF;
+    LCD_clear();
+    LCD_cmd(0x80);
+    LCD_txt("Temp:");
+    LCD_cmd(0xC2);
+    LCD_txt(0xF8);
+    LCD_txt("F");
     while(1)
     {
         
