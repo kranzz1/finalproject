@@ -49,11 +49,21 @@ void main(void) {
     SSPCON1bits.SSPM = 1000;    //
     
     //Interrupt Initialization
+    
+    /*
     INTCONbits.RBIF = 0;        //Reset PortB Interrupt flag
+    INTCONbits.RBIE = 1;        //enable port b change interrupts
     RCONbits.IPEN = 1;          //enable interrupt priority
     INTCON2bits.RBIP = 1;       //High priority
     INTCONbits.GIEH = 1;        //enable all high interrupts
+    INTCONbits.PEIE = 1;        //peripheral interrupts
+     */
     
+    RCONbits.IPEN = 1;
+    INTCON2bits.INTEDG0 = 1;
+    INTCONbits.INT0IE = 1;
+    INTCONbits.INT0IF = 1;
+    INTCONbits.GIEH = 1;
    
 
     //Initialization for LCD
@@ -69,8 +79,13 @@ void main(void) {
         if(update == 1)
         {
             updateLCD(tempdata);
+            
+            LCD_cmd(0xCF);
+            LCD_data(update + '0');
             update = 0;
         }
+        LCD_cmd(0xCF);
+            LCD_data(update + '0');
     }
      
 }
@@ -108,11 +123,14 @@ int queryTemp()
     clear_sspif();
     while(SSPCON2bits.ACKSTAT = 0){}
     SSPCON2bits.RCEN = 1;           //RCEN
+    TRISCbits.RC4 = 1;
     clear_sspif();
+    while(SSPSTATbits.BF = 0){}
     rawtemp = SSPBUF;
     SSPCON2bits.ACKDT = 1;      //NACK
     SSPCON2bits.PEN = 1;            //stop condition enable
     clear_sspif();
+    TRISCbits.RC4 = 0;
     return rawtemp;
 }
 void clear_sspif()
@@ -123,13 +141,11 @@ void clear_sspif()
 
 void __interrupt(high_priority) high_ISR(void)
 {
-    if(INTCONbits.RBIF == 1)
+    if(INTCONbits.INT0IF == 1)
     {
-        __delay_ms(10);
-        if(INTCONbits.RBIF == 1)
-        {
-        tempdata = 456;
-        update  = 1;
-        }  
+        tempdata = queryTemp();
+        update = 1;
+        __delay_ms(100);
+        INTCONbits.INT0IF = 0;        //Reset PortB Interrupt flag
     }
 }
