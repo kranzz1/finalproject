@@ -29,7 +29,7 @@
 void updateLCD(int);
 int queryTemp();
 void writeStaticLCD();
-void clear_sspif();
+void xmitInProgress(void);
 
 /*Global Variables*/
 int tempdata;
@@ -45,8 +45,16 @@ void main(void) {
     TRISBbits.RB0 = 1;
     
      //I2C Initialization
-    SSPADD = 0x05;              //SSPADD value for I2C clk
-    SSPCON1bits.SSPM = 1000;    //
+    SSPADD = 0x19;              //SSPADD value for I2C clk
+    SSPSTATbits.SMP = 1;        //Disable slew rate control
+    SSPCON1bits.SSPEN = 1;      //Master Sync. Serial Port enable
+    SSPCON1bits.SSPM = 1000;       
+    SSPCON2 = 0x00;
+    
+    
+    //Set pin directions
+    TRISCbits.RC3 = 1;          //SCL
+    TRISCbits.RC4 = 1;          //SDA
     
     //Interrupt Initialization
     
@@ -109,36 +117,35 @@ void writeStaticLCD()
 int queryTemp()
 {
     int rawtemp;
-    SSPCON2bits.SEN = 1;        //start condition enable
-    clear_sspif();
-    SSPBUF = I2C_SLAVE_ADDR ;
-    clear_sspif();
-    while(SSPCON2bits.ACKSTAT = 0){}
-    SSPBUF = 0x00;                  //read temp command
-    clear_sspif();
-    while(SSPCON2bits.ACKSTAT = 0){}
-    SSPCON2bits.SEN = 1;        //start condition enable
-    clear_sspif();
-    SSPBUF = I2C_SLAVE_ADDR ;
-    clear_sspif();
-    while(SSPCON2bits.ACKSTAT = 0){}
-    SSPCON2bits.RCEN = 1;           //RCEN
-    TRISCbits.RC4 = 1;
-    clear_sspif();
-    while(SSPSTATbits.BF = 0){}
+    while ((SSPSTAT & 0x04) || (SSPCON2 & 0x1F));
+    SSPCON2bits.SEN=1;      //start condition enable
+    xmitInProgress();
+    SSPBUF=I2C_SLAVE_ADDR;            //send tempsensor I2C address
+    xmitInProgress();
+    SSPBUF=0x00;            //send tempsensor readtemp command
+    xmitInProgress();
+    SSPCON2bits.RSEN = 1;   //generate restart condition
+    while ( SSPCON2bits.RSEN );     // wait until re-start condition is over 
+    SSPBUF=I2C_SLAVE_ADDR;            //send tempsensor I2C address
+    xmitInProgress();
+    SSPCON2bits.ACKDT=1;    //To read the data byte, the ACKDT bit is first set to indicate that a NO ACK should be sent.
+    SSPCON2bits.RCEN=1;     //Then the RCEN bit is set to initialize the read and the data can be copied from SSPBUF
+    xmitInProgress();
     rawtemp = SSPBUF;
-    SSPCON2bits.ACKDT = 1;      //NACK
-    SSPCON2bits.PEN = 1;            //stop condition enable
-    clear_sspif();
-    TRISCbits.RC4 = 0;
+    while ( SSPCON2bits.ACKEN );
+    SSPCON2bits.PEN=1;
+    while (SSPSTATbits.P);
     return rawtemp;
 }
-void clear_sspif()
-{
-    while(PIR1bits.SSPIF = 0){}
-    PIR1bits.SSPIF = 0;
+void xmitInProgress(void){
+    
+    while ((SSPSTAT & 0x04) || (SSPCON2 & 0x1F)); //Transmit is in progress
+    
+    while(!PIR1bits.SSPIF);
+    
+    PIR1bits.SSPIF=0;
+    
 }
-
 void __interrupt(high_priority) high_ISR(void)
 {
     if(INTCONbits.INT0IF == 1)
